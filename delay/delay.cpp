@@ -58,7 +58,7 @@ struct delay_task
 	delay_task(std::coroutine_handle<promise_type> h) :
 		m_handle(h)
 	{
-		std::cout << "delay_task with handled(" << m_handle.address() << ") was created." << std::endl;
+		//std::cout << "delay_task with handled(" << m_handle.address() << ") was created." << std::endl;
 	}
 	delay_task(delay_task&& other) noexcept
 	{
@@ -67,8 +67,9 @@ struct delay_task
 	}
 	~delay_task()
 	{
-		std::cout << "delay_task with handled(" << m_handle.address() << ") was deleted." << std::endl;
-		m_handle.destroy();
+		//std::cout << "delay_task with handled(" << m_handle.address() << ") was deleted." << std::endl;
+		if(m_handle)
+			m_handle.destroy();
 	}
 
 	struct promise_type
@@ -76,6 +77,11 @@ struct delay_task
 		struct final_awaiter;
 		//T result;
 		std::coroutine_handle<> previous;
+		std::chrono::milliseconds duration;
+		promise_type(std::chrono::milliseconds duration)
+		{
+			this->duration = duration;
+		}
 		~promise_type()
 		{
 			std::cout << "~delay_task::promise_type in thread id(" << std::this_thread::get_id() << ")" << std::endl;
@@ -157,8 +163,8 @@ struct delay_task
 
 	struct delay_awaitable
 	{
-		handle m_handle;
-		std::chrono::milliseconds duration;
+		//std::chrono::milliseconds duration;
+		delay_task::handle m_handle;
 		bool await_ready()
 		{
 			return false;
@@ -174,6 +180,7 @@ struct delay_task
 			{
 				throw new std::runtime_error("timer created failure.");
 			}
+			auto duration = m_handle.promise().duration;
 			auto count = std::chrono::nanoseconds(duration).count() / 100 * -1;
 			FILETIME ft;
 			memcpy(&ft, &count, sizeof(INT64));
@@ -189,7 +196,7 @@ struct delay_task
 	delay_awaitable operator co_await()
 	{
 		using namespace std::chrono_literals;
-		return delay_awaitable {m_handle, 1000ms};
+		return delay_awaitable {m_handle};
 	}
 
 	//co_await a awaitable(as-is).
@@ -197,7 +204,8 @@ struct delay_task
 
 };
 
-delay_task delay()
+
+delay_task delay(std::chrono::milliseconds duration)
 {
 	co_return;
 }
@@ -209,11 +217,13 @@ struct task
 	using handle = std::coroutine_handle<promise_type>;
 	handle m_handle;
 	task(std::coroutine_handle<promise_type> h) : m_handle(h) {
-		std::cout << "task with handled(" << m_handle.address() << ") was created." << std::endl;
+		//std::cout << "task with handled(" << m_handle.address() << ") was created." << std::endl;
 	}
 	task(task&& t) = delete;
 	~task() {
-		std::cout << "task with handled(" << m_handle.address() << ") was deleted." << std::endl;
+		//std::cout << "task with handled(" << m_handle.address() << ") was deleted." << std::endl;
+		if (m_handle)
+			m_handle.destroy();
 	}
 	struct promise_type
 	{
@@ -249,14 +259,14 @@ struct task
 
 task a_coroutine_func()
 {
-
-	for (int i = 0; i < 3; ++i)
+	using namespace std::chrono_literals;
+	for (int i = 1; i < 4; ++i)
 	{
 	#if true
-		auto d = delay();
-		std::cout << "created a delay task(" << i << ") in thread (" << std::this_thread::get_id() << ")." << std::endl;
+		auto d = delay(std::chrono::seconds(i));
+		std::cout << "Delay for "<< i <<" seconds."<< std::endl;
 		co_await d;
-		std::cout << "co_await a task(" << i << ") resumed in thread (" << std::this_thread::get_id() << ")." << std::endl;
+		std::cout << "a_coroutine_func() resumed in thread (" << std::this_thread::get_id() << ")." << std::endl;
 	#endif
 
 	}
